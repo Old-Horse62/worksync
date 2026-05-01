@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkSync 打卡系統</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5F5;color:#1a1a1a;font-size:14px}
+input,select,textarea{font-family:inherit;font-size:14px;border:1px solid #ddd;border-radius:8px;padding:8px 12px;width:100%;outline:none;background:#fff;color:#1a1a1a}
+input:focus,select:focus{border-color:#185FA5}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-size:14px;font-weight:500;transition:all 0.15s}
+button:active{transform:scale(0.98)}
+
+/* Layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:#042C53;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.sidebar-logo{padding:20px 18px 16px;border-bottom:1px solid #0C447C}
+.sidebar-logo-name{color:#E6F1FB;font-size:17px;font-weight:600;letter-spacing:-0.3px}
+.sidebar-logo-role{color:#85B7EB;font-size:11px;margin-top:3px}
+.sidebar-section{padding:14px 18px 6px;font-size:10px;color:#378ADD;font-weight:600;letter-spacing:1px;text-transform:uppercase}
+.nav-link{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:2px 8px;border-radius:8px;cursor:pointer;color:#85B7EB;font-size:13px;border:none;background:transparent;width:calc(100% - 16px);text-align:left}
+.nav-link:hover{background:#0C447C;color:#E6F1FB}
+.nav-link.active{background:#185FA5;color:#E6F1FB}
+.nav-badge{margin-left:auto;background:#E24B4A;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px}
+.sidebar-footer{margin-top:auto;padding:14px 18px;border-top:1px solid #0C447C}
+.logout-btn{background:transparent;color:#85B7EB;font-size:13px;padding:8px 12px;border-radius:8px;width:100%;text-align:left;border:1px solid #0C447C}
+.logout-btn:hover{background:#0C447C;color:#E6F1FB}
+
+.main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:#fff;border-bottom:1px solid #eee;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:16px;font-weight:600;color:#1a1a1a}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.topbar-clock{font-size:13px;color:#666;font-variant-numeric:tabular-nums}
+.content{padding:24px 28px;flex:1}
+
+/* Login */
+.login-wrap{min-height:100vh;background:#042C53;display:flex;align-items:center;justify-content:center;padding:2rem}
+.login-box{background:#fff;border-radius:16px;padding:2rem;width:100%;max-width:400px}
+.login-logo{font-size:22px;font-weight:700;color:#042C53;margin-bottom:4px}
+.login-sub{font-size:13px;color:#888;margin-bottom:1.5rem}
+.login-label{font-size:12px;color:#666;margin-bottom:4px;display:block;margin-top:14px}
+.login-label:first-of-type{margin-top:0}
+.login-btn{width:100%;padding:12px;background:#185FA5;color:#fff;font-size:15px;border-radius:10px;margin-top:1.2rem}
+.login-btn:hover{background:#0C447C}
+.login-err{font-size:12px;color:#E24B4A;text-align:center;margin-top:8px;display:none}
+
+/* Cards */
+.card{background:#fff;border:1px solid #eee;border-radius:12px;padding:18px 20px;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+
+/* Metric */
+.metric{background:#F8F9FA;border-radius:10px;padding:14px;text-align:center}
+.metric-label{font-size:11px;color:#888;margin-bottom:5px}
+.metric-value{font-size:22px;font-weight:600;color:#1a1a1a}
+.metric-sub{font-size:11px;color:#aaa;margin-top:3px}
+
+/* Badge */
+.badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600}
+.b-green{background:#EAF3DE;color:#3B6D11}
+.b-amber{background:#FAEEDA;color:#854F0B}
+.b-blue{background:#E6F1FB;color:#185FA5}
+.b-red{background:#FCEBEB;color:#A32D2D}
+.b-gray{background:#F1EFE8;color:#5F5E5A}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:9px 12px;font-size:11px;font-weight:600;color:#888;background:#F8F9FA;border-bottom:1px solid #eee}
+td{padding:11px 12px;border-bottom:1px solid #F0F0F0;color:#1a1a1a;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFAFA}
+
+/* Buttons */
+.btn-primary{background:#185FA5;color:#fff;padding:9px 20px;border-radius:8px}
+.btn-primary:hover{background:#0C447C}
+.btn-secondary{background:#F0F0F0;color:#333;padding:9px 20px;border-radius:8px}
+.btn-secondary:hover{background:#E5E5E5}
+.btn-success{background:#EAF3DE;color:#3B6D11;padding:6px 14px;border-radius:6px;font-size:12px;border:1px solid #C0DD97}
+.btn-success:hover{background:#C0DD97}
+.btn-danger{background:#FCEBEB;color:#A32D2D;padding:6px 14px;border-radius:6px;font-size:12px;border:1px solid #F09595}
+.btn-danger:hover{background:#F7C1C1}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:6px}
+
+/* Form */
+.form-row{margin-bottom:14px}
+.form-label{font-size:12px;color:#666;margin-bottom:4px;display:block}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Row item */
+.list-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F0F0F0}
+.list-row:last-child{border-bottom:none}
+
+/* Avatar */
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+
+/* Punch page */
+.punch-hero{background:linear-gradient(135deg,#042C53,#0C447C);border-radius:14px;padding:24px;margin-bottom:16px;color:#E6F1FB;text-align:center}
+.punch-clock{font-size:48px;font-weight:700;letter-spacing:2px;font-variant-numeric:tabular-nums;line-height:1}
+.punch-date{font-size:13px;color:#85B7EB;margin:6px 0 16px}
+.punch-shift{display:inline-block;background:#0C447C;color:#85B7EB;font-size:12px;padding:4px 14px;border-radius:20px;margin-bottom:16px}
+.punch-status-row{display:flex;gap:8px;margin-bottom:16px}
+.punch-status-box{flex:1;background:rgba(255,255,255,0.08);border-radius:10px;padding:10px;text-align:center}
+.punch-status-label{font-size:11px;color:#85B7EB;margin-bottom:4px}
+.punch-status-val{font-size:16px;font-weight:600;color:#E6F1FB}
+.punch-btn{width:100%;padding:14px;font-size:16px;border-radius:10px;margin-bottom:8px}
+.punch-btn-in{background:#3B6D11;color:#EAF3DE}
+.punch-btn-in:hover{background:#27500A}
+.punch-btn-out{background:#854F0B;color:#FAEEDA}
+.punch-btn-out:hover{background:#633806}
+.punch-btn-done{background:#E0E0E0;color:#999;cursor:default}
+.location-bar{display:flex;align-items:center;gap:8px;background:#E6F1FB;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#185FA5}
+
+/* Leave type */
+.type-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.type-btn{padding:7px 14px;border-radius:8px;border:1px solid #ddd;background:#fff;color:#555;font-size:13px;cursor:pointer}
+.type-btn.sel{background:#E6F1FB;color:#185FA5;border-color:#B5D4F4}
+.type-info{background:#F8F9FA;border-radius:8px;padding:10px 14px;font-size:12px;color:#666;margin-bottom:14px;line-height:1.6}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:#042C53;color:#E6F1FB;padding:12px 20px;border-radius:10px;font-size:13px;z-index:9999;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
+.toast.show{display:block}
+
+/* Section tabs */
+.tab-bar{display:flex;gap:4px;background:#F0F0F0;border-radius:10px;padding:3px;margin-bottom:18px;width:fit-content}
+.tab-btn{padding:7px 18px;border-radius:7px;border:none;background:transparent;font-size:13px;color:#888}
+.tab-btn.active{background:#fff;color:#1a1a1a;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px}
+.alert-info{background:#E6F1FB;color:#185FA5}
+.alert-warn{background:#FAEEDA;color:#854F0B}
+.alert-success{background:#EAF3DE;color:#3B6D11}
+
+/* Responsive hide sidebar on mobile */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .main{margin-left:0}
+}
+
+.page{display:none}
+.page.active{display:block}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage">
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">WorkSync</div>
+    <div class="login-sub">遠距員工打卡系統</div>
+    <label class="login-label">電子郵件</label>
+    <input type="email" id="loginEmail" placeholder="輸入公司信箱">
+    <label class="login-label">密碼</label>
+    <input type="password" id="loginPwd" placeholder="輸入密碼" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">登入</button>
+    <div class="login-err" id="loginErr">帳號或密碼錯誤</div>
+  </div>
+</div>
+</div>
+
+<!-- RESET PASSWORD PAGE -->
+<div id="resetPage" style="display:none">
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">WorkSync</div>
+    <div class="login-sub">設定新密碼</div>
+    <label class="login-label">新密碼</label>
+    <input type="password" id="resetPwd" placeholder="輸入新密碼（至少6位）">
+    <label class="login-label">確認新密碼</label>
+    <input type="password" id="resetPwd2" placeholder="再次輸入新密碼">
+    <button class="login-btn" onclick="doResetPassword()">確認設定新密碼</button>
+    <div class="login-err" id="resetErr">密碼不符合或太短</div>
+    <div id="resetOk" style="font-size:12px;color:#3B6D11;text-align:center;margin-top:8px;display:none">✓ 密碼設定成功！請重新登入</div>
+  </div>
+</div>
+</div>
+
+<!-- APP -->
+<div id="appPage" style="display:none">
+<div class="app">
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-name">WorkSync</div>
+      <div class="sidebar-logo-role" id="sidebarRole">員工</div>
+    </div>
+
+    <!-- Employee nav -->
+    <div id="empNav">
+      <div class="sidebar-section">員工功能</div>
+      <button class="nav-link active" onclick="showPage('punch',this)">打卡</button>
+      <button class="nav-link" onclick="showPage('leave',this)">請假申請</button>
+      <button class="nav-link" onclick="showPage('overtime',this)">加班申請</button>
+      <button class="nav-link" onclick="showPage('myrecords',this)">我的紀錄</button>
+      <button class="nav-link" onclick="showPage('myprofile',this)">個人資料</button>
+    </div>
+
+    <!-- Admin nav -->
+    <div id="adminNav" style="display:none">
+      <div class="sidebar-section">總覽</div>
+      <button class="nav-link" onclick="showPage('dashboard',this)">儀表板</button>
+      <div class="sidebar-section">審核</div>
+      <button class="nav-link" onclick="showPage('approvals',this)">待審申請 <span class="nav-badge" id="approvalBadge">0</span></button>
+      <div class="sidebar-section">人員管理</div>
+      <button class="nav-link" onclick="showPage('allattendance',this)">出勤總覽</button>
+      <button class="nav-link" onclick="showPage('schedules',this)">排班管理</button>
+      <button class="nav-link" onclick="showPage('employees',this)">員工管理</button>
+      <div class="sidebar-section">財務</div>
+      <button class="nav-link" onclick="showPage('salary',this)">薪資計算</button>
+      <button class="nav-link" onclick="showPage('exportpage',this)">匯出報表</button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:#85B7EB;margin-bottom:8px" id="sidebarName"></div>
+      <button class="logout-btn" onclick="doLogout()">登出</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">打卡</div>
+      <div class="topbar-right">
+        <div class="topbar-clock" id="topbarClock"></div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- PUNCH PAGE -->
+      <div class="page active" id="page-punch">
+        <div class="punch-hero">
+          <div class="punch-clock" id="punchClock">00:00:00</div>
+          <div class="punch-date" id="punchDate"></div>
+          <div class="punch-shift" id="punchShift">早班 09:00–18:00</div>
+          <div class="punch-status-row">
+            <div class="punch-status-box"><div class="punch-status-label">上班</div><div class="punch-status-val" id="dispCheckIn">—</div></div>
+            <div class="punch-status-box"><div class="punch-status-label">下班</div><div class="punch-status-val" id="dispCheckOut">—</div></div>
+            <div class="punch-status-box"><div class="punch-status-label">工時</div><div class="punch-status-val" id="dispWorkHrs">—</div></div>
+          </div>
+        </div>
+        <div class="location-bar" id="locationBar">📍 正在取得位置...</div>
+        <button class="punch-btn punch-btn-in" id="btnIn" onclick="doPunch('in')">上班打卡</button>
+        <button class="punch-btn punch-btn-out" id="btnOut" onclick="doPunch('out')" style="display:none">下班打卡</button>
+        <button class="punch-btn punch-btn-done" id="btnDone" style="display:none">今日打卡完成</button>
+
+        <div class="card">
+          <div class="card-title">本月出勤概覽</div>
+          <div class="grid4">
+            <div class="metric"><div class="metric-label">出勤天數</div><div class="metric-value" id="mAttend">—</div></div>
+            <div class="metric"><div class="metric-label">遲到次數</div><div class="metric-value" id="mLate">—</div></div>
+            <div class="metric"><div class="metric-label">加班時數</div><div class="metric-value" id="mOT">—</div></div>
+            <div class="metric"><div class="metric-label">特休餘額</div><div class="metric-value" id="mLeave">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEAVE PAGE -->
+      <div class="page" id="page-leave">
+        <div class="card">
+          <div class="card-title">申請請假</div>
+          <div class="form-row">
+            <label class="form-label">假別</label>
+            <div class="type-grid" id="leaveTypeGrid">
+              <button class="type-btn sel" onclick="selLeaveType(this,'特休')">特休</button>
+              <button class="type-btn" onclick="selLeaveType(this,'病假')">病假</button>
+              <button class="type-btn" onclick="selLeaveType(this,'事假')">事假</button>
+              <button class="type-btn" onclick="selLeaveType(this,'婚假')">婚假</button>
+              <button class="type-btn" onclick="selLeaveType(this,'喪假')">喪假</button>
+              <button class="type-btn" onclick="selLeaveType(this,'補休')">補休</button>
+              <button class="type-btn" onclick="selLeaveType(this,'生理假')">生理假</button>
+              <button class="type-btn" onclick="selLeaveType(this,'公傷假')">公傷假</button>
+              <button class="type-btn" onclick="selLeaveType(this,'陪產假')">陪產假</button>
+            </div>
+            <div class="type-info" id="leaveTypeInfo">特休：有薪假，年資 1–3 年享 7 天，3 年以上依勞基法增加。不扣薪。</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-row"><label class="form-label">開始日期</label><input type="date" id="leaveFrom" onchange="calcLeave()"></div>
+            <div class="form-row"><label class="form-label">結束日期</label><input type="date" id="leaveTo" onchange="calcLeave()"></div>
+          </div>
+          <div class="form-row"><label class="form-label">請假事由</label><input type="text" id="leaveReason" placeholder="請填寫事由"></div>
+          <div class="alert alert-info" id="leaveCalcInfo">請選擇日期</div>
+          <button class="btn-primary" onclick="submitLeave()">送出請假申請</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">請假紀錄</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>假別</th><th>日期</th><th>天數</th><th>事由</th><th>狀態</th></tr></thead>
+              <tbody id="leaveLog"><tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">載入中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- OVERTIME PAGE -->
+      <div class="page" id="page-overtime">
+        <div class="card">
+          <div class="card-title">申請加班</div>
+          <div class="form-row">
+            <label class="form-label">加班類型</label>
+            <div class="type-grid" id="otTypeGrid">
+              <button class="type-btn sel" onclick="selOTType(this,'平日加班')">平日加班</button>
+              <button class="type-btn" onclick="selOTType(this,'假日加班')">假日加班</button>
+              <button class="type-btn" onclick="selOTType(this,'國定假日加班')">國定假日加班</button>
+            </div>
+            <div class="type-info" id="otTypeInfo">平日加班：前 2 小時 1.34 倍，第 3 小時起 1.67 倍。</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-row"><label class="form-label">加班日期</label><input type="date" id="otDate" onchange="calcOT()"></div>
+            <div class="form-row"><label class="form-label">補償方式</label>
+              <select id="otComp"><option>領加班費</option><option>換補休</option></select>
+            </div>
+            <div class="form-row"><label class="form-label">開始時間</label><input type="time" id="otStart" value="18:00" onchange="calcOT()"></div>
+            <div class="form-row"><label class="form-label">結束時間</label><input type="time" id="otEnd" value="20:00" onchange="calcOT()"></div>
+          </div>
+          <div class="form-row"><label class="form-label">加班事由</label><input type="text" id="otReason" placeholder="請說明加班內容"></div>
+          <div class="alert alert-info" id="otCalcInfo">預計加班 2 小時</div>
+          <button class="btn-primary" onclick="submitOT()">送出加班申請</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">加班紀錄</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>日期</th><th>類型</th><th>時數</th><th>補償</th><th>事由</th><th>狀態</th></tr></thead>
+              <tbody id="otLog"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">載入中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MY RECORDS -->
+      <div class="page" id="page-myrecords">
+        <div class="card">
+          <div class="card-title">打卡紀錄</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>日期</th><th>上班</th><th>下班</th><th>工時</th><th>狀態</th></tr></thead>
+              <tbody id="myAttLog"><tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">載入中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MY PROFILE -->
+      <div class="page" id="page-myprofile">
+        <div class="card">
+          <div class="card-title">個人資料</div>
+          <div id="profileInfo" style="font-size:14px;line-height:2;color:#555">載入中...</div>
+        </div>
+        <div class="card">
+          <div class="card-title">修改密碼</div>
+          <div class="form-row"><label class="form-label">新密碼</label><input type="password" id="newPwd" placeholder="輸入新密碼"></div>
+          <button class="btn-primary" onclick="changePwd()">更新密碼</button>
+        </div>
+      </div>
+
+      <!-- ADMIN: DASHBOARD -->
+      <div class="page" id="page-dashboard">
+        <div class="grid4" style="margin-bottom:16px">
+          <div class="metric"><div class="metric-label">今日在線</div><div class="metric-value" id="dOnline">—</div></div>
+          <div class="metric"><div class="metric-label">待審申請</div><div class="metric-value" id="dPending" style="color:#BA7517">—</div></div>
+          <div class="metric"><div class="metric-label">員工總數</div><div class="metric-value" id="dTotal">—</div></div>
+          <div class="metric"><div class="metric-label">本月出勤率</div><div class="metric-value" id="dRate">—</div></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">今日出勤狀況</div>
+            <div id="todayStatus"><div style="color:#aaa;text-align:center;padding:20px">載入中...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">最新待審申請</div>
+            <div id="latestPending"><div style="color:#aaa;text-align:center;padding:20px">載入中...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN: APPROVALS -->
+      <div class="page" id="page-approvals">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchApproveTab('leave',this)">請假申請</button>
+          <button class="tab-btn" onclick="switchApproveTab('ot',this)">加班申請</button>
+          <button class="tab-btn" onclick="switchApproveTab('done',this)">已處理</button>
+        </div>
+        <div id="approveLeave"></div>
+        <div id="approveOT" style="display:none"></div>
+        <div id="approveDone" style="display:none"></div>
+      </div>
+
+      <!-- ADMIN: ALL ATTENDANCE -->
+      <div class="page" id="page-allattendance">
+        <div class="card">
+          <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center">
+            <select id="attEmpFilter" style="width:160px" onchange="loadAllAttendance()">
+              <option value="">全部員工</option>
+            </select>
+            <input type="month" id="attMonth" onchange="loadAllAttendance()" style="width:160px">
+            <button class="btn-primary btn-sm" onclick="loadAllAttendance()">查詢</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>員工</th><th>日期</th><th>上班</th><th>下班</th><th>工時</th><th>狀態</th></tr></thead>
+              <tbody id="allAttLog"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">請選擇條件查詢</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN: SCHEDULES -->
+      <div class="page" id="page-schedules">
+        <div class="card">
+          <div class="card-title">排班管理</div>
+          <div class="alert alert-info">點擊員工姓名可設定個別排班，目前顯示各員工預設班別。</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>員工</th><th>部門</th><th>預設班別</th><th>上班時間</th><th>下班時間</th><th>操作</th></tr></thead>
+              <tbody id="scheduleBody"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">載入中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN: EMPLOYEES -->
+      <div class="page" id="page-employees">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:600">員工管理</div>
+          <button class="btn-primary" onclick="showAddEmployee()">+ 新增員工</button>
+        </div>
+        <div class="card" id="addEmpCard" style="display:none">
+          <div class="card-title">新增員工帳號</div>
+          <div class="form-grid">
+            <div class="form-row"><label class="form-label">姓名</label><input type="text" id="newEmpName" placeholder="員工姓名"></div>
+            <div class="form-row"><label class="form-label">電子郵件</label><input type="email" id="newEmpEmail" placeholder="登入用信箱"></div>
+            <div class="form-row"><label class="form-label">初始密碼</label><input type="text" id="newEmpPwd" placeholder="設定初始密碼"></div>
+            <div class="form-row"><label class="form-label">部門</label><input type="text" id="newEmpDept" placeholder="工程部"></div>
+            <div class="form-row"><label class="form-label">月薪（元）</label><input type="number" id="newEmpSalary" placeholder="45000"></div>
+            <div class="form-row"><label class="form-label">班別</label>
+              <select id="newEmpShift">
+                <option>早班</option><option>晚班</option><option>彈性</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="btn-primary" onclick="addEmployee()">建立帳號</button>
+            <button class="btn-secondary" onclick="document.getElementById('addEmpCard').style.display='none'">取消</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>姓名</th><th>部門</th><th>班別</th><th>月薪</th><th>特休餘額</th><th>角色</th></tr></thead>
+              <tbody id="empBody"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">載入中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN: SALARY -->
+      <div class="page" id="page-salary">
+        <div class="card">
+          <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center">
+            <input type="month" id="salMonth" style="width:160px">
+            <button class="btn-primary btn-sm" onclick="calcSalary()">計算薪資</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>員工</th><th>底薪</th><th>事假扣薪</th><th>病假扣薪</th><th>加班費</th><th>實領薪資</th></tr></thead>
+              <tbody id="salaryBody"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">請選擇月份計算</td></tr></tbody>
+            </table>
+          </div>
+          <div id="salaryTotal" style="text-align:right;padding-top:14px;font-size:15px;font-weight:600;color:#185FA5;display:none"></div>
+        </div>
+      </div>
+
+      <!-- ADMIN: EXPORT -->
+      <div class="page" id="page-exportpage">
+        <div class="card">
+          <div class="card-title">匯出報表</div>
+          <div class="form-grid" style="margin-bottom:16px">
+            <div class="form-row"><label class="form-label">員工</label>
+              <select id="expEmp"><option value="">全部員工</option></select>
+            </div>
+            <div class="form-row"><label class="form-label">月份</label>
+              <input type="month" id="expMonth">
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn-secondary" style="text-align:left;padding:12px 16px" onclick="exportData('打卡紀錄')">📋 匯出打卡紀錄（CSV）</button>
+            <button class="btn-secondary" style="text-align:left;padding:12px 16px" onclick="exportData('請假紀錄')">📋 匯出請假紀錄（CSV）</button>
+            <button class="btn-secondary" style="text-align:left;padding:12px 16px" onclick="exportData('加班紀錄')">📋 匯出加班紀錄（CSV）</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+</div><!-- /appPage -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== HANDLE PASSWORD RESET FROM EMAIL LINK =====
+async function handleAuthCallback() {
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+    if (accessToken && (type === 'recovery' || type === 'signup')) {
+      // Set session from URL tokens
+      const { error } = await sb.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      if (!error) {
+        // Show reset password page
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('resetPage').style.display = 'block';
+        document.getElementById('appPage').style.display = 'none';
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+async function doResetPassword() {
+  const pwd = document.getElementById('resetPwd').value;
+  const pwd2 = document.getElementById('resetPwd2').value;
+  const errEl = document.getElementById('resetErr');
+  const okEl = document.getElementById('resetOk');
+  if (!pwd || pwd.length < 6 || pwd !== pwd2) {
+    errEl.style.display = 'block'; return;
+  }
+  errEl.style.display = 'none';
+  const { error } = await sb.auth.updateUser({ password: pwd });
+  if (error) { errEl.textContent = '設定失敗：' + error.message; errEl.style.display = 'block'; return; }
+  okEl.style.display = 'block';
+  await sb.auth.signOut();
+  setTimeout(() => {
+    document.getElementById('resetPage').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'block';
+  }, 2000);
+}
+
+// ===== SUPABASE INIT =====
+const SUPABASE_URL = 'https://svibaelwkqcqyfcssyn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2aWJhZWx3a3FjcXlmY2Zzc3luIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMDIzNjAsImV4cCI6MjA5Mjc3ODM2MH0.7kMlTYT7-N3nSGaVT_WHgEcJlL4cJGw-0dRkfAd-M8M';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let currentEmp = null;
+let todayLog = null;
+let selLeave = '特休';
+let selOT = '平日加班';
+
+const LEAVE_INFO = {
+  '特休':'有薪假，年資 1–3 年享 7 天，3 年以上依勞基法增加。不扣薪。',
+  '病假':'半薪假，全年上限 30 天。需附醫療證明。',
+  '事假':'無薪假，全年上限 14 天。每日扣薪 = 月薪 ÷ 30。',
+  '婚假':'有薪假，上限 8 天。結婚當日起 30 日內使用。',
+  '喪假':'有薪假，父母配偶 8 天，祖父母 6 天，兄弟姊妹 3 天。',
+  '補休':'加班換補休，需先有核准加班紀錄。補休期限 1 年。',
+  '生理假':'每月 1 天，首日半薪不計入病假。',
+  '公傷假':'因公受傷，全薪給假，期間不計入其他假別。',
+  '陪產假':'配偶分娩前後給假 7 天，有薪。'
+};
+
+// ===== CLOCK =====
+function updateClock(){
+  const n = new Date();
+  const p = v => String(v).padStart(2,'0');
+  const t = `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  const days = ['日','一','二','三','四','五','六'];
+  const d = `${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 星期${days[n.getDay()]}`;
+  const el = document.getElementById('punchClock');
+  if(el) el.textContent = t;
+  const pd = document.getElementById('punchDate');
+  if(pd) pd.textContent = d;
+  document.getElementById('topbarClock').textContent = `${p(n.getHours())}:${p(n.getMinutes())}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== TOAST =====
+function showToast(msg, color){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color || '#042C53';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// ===== LOGIN =====
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd = document.getElementById('loginPwd').value;
+  if(!email||!pwd){ document.getElementById('loginErr').style.display='block'; return; }
+  const {data,error} = await sb.auth.signInWithPassword({email,password:pwd});
+  if(error){ document.getElementById('loginErr').style.display='block'; return; }
+  document.getElementById('loginErr').style.display='none';
+  currentUser = data.user;
+  await initApp();
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  currentUser = null; currentEmp = null;
+  document.getElementById('loginPage').style.display='block';
+  document.getElementById('appPage').style.display='none';
+}
+
+// ===== INIT APP =====
+async function initApp(){
+  // get employee record
+  const {data:emp} = await sb.from('employees').select('*').eq('user_id', currentUser.id).single();
+  currentEmp = emp;
+
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('appPage').style.display='block';
+
+  const isAdmin = emp && emp.role === 'admin';
+  document.getElementById('empNav').style.display = isAdmin ? 'none' : 'block';
+  document.getElementById('adminNav').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('sidebarRole').textContent = isAdmin ? '管理員' : '員工';
+  document.getElementById('sidebarName').textContent = emp ? emp.name : currentUser.email;
+
+  if(isAdmin){
+    showPage('dashboard');
+    loadDashboard();
+  } else {
+    showPage('punch');
+    loadTodayPunch();
+    loadPunchStats();
+    getLocation();
+  }
+}
+
+// ===== PAGE NAVIGATION =====
+const pageTitles = {
+  punch:'打卡', leave:'請假申請', overtime:'加班申請',
+  myrecords:'我的紀錄', myprofile:'個人資料',
+  dashboard:'儀表板', approvals:'待審申請', allattendance:'出勤總覽',
+  schedules:'排班管理', employees:'員工管理', salary:'薪資計算', exportpage:'匯出報表'
+};
+
+function showPage(id, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.getElementById('topbarTitle').textContent = pageTitles[id] || id;
+  document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+
+  // lazy load
+  if(id==='myrecords') loadMyRecords();
+  if(id==='myprofile') loadMyProfile();
+  if(id==='leave') loadLeaveLog();
+  if(id==='overtime'){ loadOTLog(); const n=new Date(); document.getElementById('otDate').value=n.toISOString().slice(0,10); calcOT(); }
+  if(id==='approvals'){ loadApprovals(); }
+  if(id==='allattendance'){ loadEmpFilter(); const n=new Date(); document.getElementById('attMonth').value=n.toISOString().slice(0,7); }
+  if(id==='schedules') loadSchedules();
+  if(id==='employees') loadEmployees();
+  if(id==='salary'){ const n=new Date(); document.getElementById('salMonth').value=n.toISOString().slice(0,7); }
+  if(id==='exportpage') loadExpEmpFilter();
+}
+
+// ===== LOCATION =====
+function getLocation(){
+  const bar = document.getElementById('locationBar');
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      bar.style.background='#EAF3DE'; bar.style.color='#3B6D11';
+      bar.textContent = `✓ 位置已取得（${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}）`;
+    }, ()=>{
+      bar.style.background='#FAEEDA'; bar.style.color='#854F0B';
+      bar.textContent = '⚠ 無法取得位置，將記錄為遠端打卡';
+    });
+  }
+}
+
+// ===== PUNCH =====
+async function loadTodayPunch(){
+  if(!currentEmp) return;
+  const today = new Date().toISOString().slice(0,10);
+  const {data} = await sb.from('attendance_logs')
+    .select('*').eq('employee_id', currentEmp.id).eq('work_date', today).single();
+  todayLog = data;
+  const p = v => String(v).padStart(2,'0');
+  if(data){
+    if(data.check_in){
+      const ci = new Date(data.check_in);
+      document.getElementById('dispCheckIn').textContent = `${p(ci.getHours())}:${p(ci.getMinutes())}`;
+      document.getElementById('btnIn').style.display='none';
+      document.getElementById('btnOut').style.display='block';
+    }
+    if(data.check_out){
+      const co = new Date(data.check_out);
+      document.getElementById('dispCheckOut').textContent = `${p(co.getHours())}:${p(co.getMinutes())}`;
+      const hrs = ((new Date(data.check_out)-new Date(data.check_in))/3600000).toFixed(1);
+      document.getElementById('dispWorkHrs').textContent = hrs + 'H';
+      document.getElementById('btnOut').style.display='none';
+      document.getElementById('btnDone').style.display='block';
+    }
+  }
+  if(currentEmp.shift_type){
+    document.getElementById('punchShift').textContent =
+      `${currentEmp.shift_type} ${currentEmp.shift_start||'09:00'}–${currentEmp.shift_end||'18:00'}`;
+  }
+}
+
+async function loadPunchStats(){
+  if(!currentEmp) return;
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const {data} = await sb.from('attendance_logs')
+    .select('*').eq('employee_id', currentEmp.id).gte('work_date', monthStart);
+  if(data){
+    document.getElementById('mAttend').textContent = data.filter(d=>d.check_in).length;
+    document.getElementById('mLate').textContent = data.filter(d=>d.status==='遲到').length;
+  }
+  const {data:ot} = await sb.from('overtime_requests')
+    .select('hours').eq('employee_id', currentEmp.id).eq('status','核准').gte('ot_date', monthStart);
+  if(ot) document.getElementById('mOT').textContent = ot.reduce((a,b)=>a+(b.hours||0),0) + 'H';
+  if(currentEmp) document.getElementById('mLeave').textContent =
+    (currentEmp.annual_leave_days - currentEmp.annual_leave_used) + '天';
+}
+
+async function doPunch(type){
+  if(!currentEmp){ showToast('找不到員工資料','#A32D2D'); return; }
+  const today = new Date().toISOString().slice(0,10);
+  const now = new Date();
+  const p = v => String(v).padStart(2,'0');
+  const timeStr = `${p(now.getHours())}:${p(now.getMinutes())}`;
+
+  if(type==='in'){
+    // check late
+    const shiftH = parseInt((currentEmp.shift_start||'09:00').split(':')[0]);
+    const shiftM = parseInt((currentEmp.shift_start||'09:00').split(':')[1]);
+    const lateMin = (now.getHours()*60+now.getMinutes()) - (shiftH*60+shiftM);
+    const status = lateMin > 10 ? '遲到' : '正常';
+
+    if(todayLog){
+      await sb.from('attendance_logs').update({check_in:now.toISOString(), status}).eq('id', todayLog.id);
+    } else {
+      await sb.from('attendance_logs').insert({
+        employee_id: currentEmp.id, check_in: now.toISOString(),
+        work_date: today, status
+      });
+    }
+    document.getElementById('dispCheckIn').textContent = timeStr;
+    document.getElementById('btnIn').style.display='none';
+    document.getElementById('btnOut').style.display='block';
+    showToast(status==='遲到'?'⚠ 打卡成功（遲到）':'✓ 上班打卡成功', status==='遲到'?'#633806':'#27500A');
+    loadTodayPunch();
+  } else {
+    if(!todayLog && !todayLog?.check_in){ showToast('請先完成上班打卡','#A32D2D'); return; }
+    await sb.from('attendance_logs').update({check_out: now.toISOString()}).eq('employee_id', currentEmp.id).eq('work_date', today);
+    document.getElementById('dispCheckOut').textContent = timeStr;
+    document.getElementById('btnOut').style.display='none';
+    document.getElementById('btnDone').style.display='block';
+    showToast('✓ 下班打卡成功', '#27500A');
+    loadTodayPunch();
+  }
+  loadPunchStats();
+}
+
+// ===== LEAVE =====
+function selLeaveType(btn, type){
+  selLeave = type;
+  document.querySelectorAll('#leaveTypeGrid .type-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  document.getElementById('leaveTypeInfo').textContent = type + '：' + LEAVE_INFO[type];
+  calcLeave();
+}
+
+function calcLeave(){
+  const f = document.getElementById('leaveFrom').value;
+  const t = document.getElementById('leaveTo').value;
+  if(!f||!t) return;
+  const days = Math.max(1, Math.round((new Date(t)-new Date(f))/86400000)+1);
+  let deduct = '不扣薪';
+  if(currentEmp){
+    const daily = Math.round(currentEmp.base_salary/30);
+    if(selLeave==='事假') deduct = `扣薪 ${(daily*days).toLocaleString()} 元`;
+    else if(selLeave==='病假') deduct = `扣薪 ${Math.round(daily/2*days).toLocaleString()} 元（半薪）`;
+  }
+  document.getElementById('leaveCalcInfo').textContent = `請假 ${days} 天｜${deduct}`;
+}
+
+async function submitLeave(){
+  if(!currentEmp){ showToast('找不到員工資料','#A32D2D'); return; }
+  const f = document.getElementById('leaveFrom').value;
+  const t = document.getElementById('leaveTo').value;
+  const reason = document.getElementById('leaveReason').value;
+  if(!f||!t){ showToast('請選擇日期','#A32D2D'); return; }
+  const days = Math.max(1, Math.round((new Date(t)-new Date(f))/86400000)+1);
+  let deduct = 0;
+  if(currentEmp){
+    const daily = Math.round(currentEmp.base_salary/30);
+    if(selLeave==='事假') deduct = daily*days;
+    else if(selLeave==='病假') deduct = Math.round(daily/2)*days;
+  }
+  const {error} = await sb.from('leave_requests').insert({
+    employee_id: currentEmp.id, leave_type: selLeave,
+    from_date: f, to_date: t, days, reason, deduct_amount: deduct, status:'待審'
+  });
+  if(error){ showToast('送出失敗：'+error.message,'#A32D2D'); return; }
+  showToast('✓ 請假申請已送出，待主管審核','#27500A');
+  loadLeaveLog();
+}
+
+async function loadLeaveLog(){
+  if(!currentEmp) return;
+  const {data} = await sb.from('leave_requests').select('*')
+    .eq('employee_id', currentEmp.id).order('created_at',{ascending:false});
+  const tbody = document.getElementById('leaveLog');
+  if(!data||!data.length){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">尚無紀錄</td></tr>'; return; }
+  tbody.innerHTML = data.map(r=>`<tr>
+    <td><span class="badge b-blue">${r.leave_type}</span></td>
+    <td>${r.from_date} ~ ${r.to_date}</td>
+    <td>${r.days} 天</td>
+    <td>${r.reason||'—'}</td>
+    <td><span class="badge ${r.status==='核准'?'b-green':r.status==='駁回'?'b-red':'b-amber'}">${r.status}</span></td>
+  </tr>`).join('');
+}
+
+// ===== OVERTIME =====
+function selOTType(btn, type){
+  selOT = type;
+  document.querySelectorAll('#otTypeGrid .type-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  const info = {
+    '平日加班':'前 2 小時 1.34 倍，第 3 小時起 1.67 倍。',
+    '假日加班':'前 8 小時 1.34 倍，8 小時後 1.67 倍。',
+    '國定假日加班':'全日 2 倍時薪，一律給加班費。'
+  };
+  document.getElementById('otTypeInfo').textContent = type + '：' + info[type];
+  calcOT();
+}
+
+function calcOT(){
+  const s = document.getElementById('otStart').value;
+  const e = document.getElementById('otEnd').value;
+  if(!s||!e) return;
+  const sm = parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]);
+  const em = parseInt(e.split(':')[0])*60+parseInt(e.split(':')[1]);
+  const hrs = Math.max(0,(em-sm)/60);
+  const hourly = currentEmp ? Math.round(currentEmp.base_salary/30/8) : 188;
+  let pay = 0;
+  if(selOT==='國定假日加班') pay = hrs*hourly*2;
+  else if(hrs<=2) pay = hrs*hourly*1.34;
+  else pay = 2*hourly*1.34+(hrs-2)*hourly*1.67;
+  document.getElementById('otCalcInfo').textContent =
+    `預計加班 ${hrs.toFixed(1)} 小時｜預估加班費 +${Math.round(pay).toLocaleString()} 元`;
+}
+
+async function submitOT(){
+  if(!currentEmp){ showToast('找不到員工資料','#A32D2D'); return; }
+  const date = document.getElementById('otDate').value;
+  const s = document.getElementById('otStart').value;
+  const e = document.getElementById('otEnd').value;
+  const reason = document.getElementById('otReason').value;
+  const comp = document.getElementById('otComp').value;
+  if(!date||!s||!e){ showToast('請填寫完整資料','#A32D2D'); return; }
+  const hrs = Math.max(0,(parseInt(e.split(':')[0])*60+parseInt(e.split(':')[1])-parseInt(s.split(':')[0])*60-parseInt(s.split(':')[1]))/60);
+  const hourly = currentEmp ? Math.round(currentEmp.base_salary/30/8) : 188;
+  let pay = 0;
+  if(selOT==='國定假日加班') pay = hrs*hourly*2;
+  else if(hrs<=2) pay = hrs*hourly*1.34;
+  else pay = 2*hourly*1.34+(hrs-2)*hourly*1.67;
+  const {error} = await sb.from('overtime_requests').insert({
+    employee_id: currentEmp.id, ot_date: date,
+    start_time: s, end_time: e, hours: hrs,
+    ot_type: selOT, compensation: comp, pay_amount: Math.round(pay),
+    reason, status:'待審'
+  });
+  if(error){ showToast('送出失敗：'+error.message,'#A32D2D'); return; }
+  showToast('✓ 加班申請已送出','#27500A');
+  loadOTLog();
+}
+
+async function loadOTLog(){
+  if(!currentEmp) return;
+  const {data} = await sb.from('overtime_requests').select('*')
+    .eq('employee_id', currentEmp.id).order('created_at',{ascending:false});
+  const tbody = document.getElementById('otLog');
+  if(!data||!data.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">尚無紀錄</td></tr>'; return; }
+  tbody.innerHTML = data.map(r=>`<tr>
+    <td>${r.ot_date}</td>
+    <td><span class="badge b-amber">${r.ot_type}</span></td>
+    <td>${r.hours}H</td>
+    <td>${r.compensation}</td>
+    <td>${r.reason||'—'}</td>
+    <td><span class="badge ${r.status==='核准'?'b-green':r.status==='駁回'?'b-red':'b-amber'}">${r.status}</span></td>
+  </tr>`).join('');
+}
+
+// ===== MY RECORDS =====
+async function loadMyRecords(){
+  if(!currentEmp) return;
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const {data} = await sb.from('attendance_logs').select('*')
+    .eq('employee_id', currentEmp.id).gte('work_date', monthStart)
+    .order('work_date',{ascending:false});
+  const tbody = document.getElementById('myAttLog');
+  if(!data||!data.length){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">本月尚無紀錄</td></tr>'; return; }
+  tbody.innerHTML = data.map(r=>{
+    const ci = r.check_in ? new Date(r.check_in) : null;
+    const co = r.check_out ? new Date(r.check_out) : null;
+    const p = v=>String(v).padStart(2,'0');
+    const ciStr = ci ? `${p(ci.getHours())}:${p(ci.getMinutes())}` : '—';
+    const coStr = co ? `${p(co.getHours())}:${p(co.getMinutes())}` : '—';
+    const hrs = ci&&co ? ((co-ci)/3600000).toFixed(1)+'H' : '—';
+    return `<tr>
+      <td>${r.work_date}</td><td>${ciStr}</td><td>${coStr}</td><td>${hrs}</td>
+      <td><span class="badge ${r.status==='遲到'?'b-amber':'b-green'}">${r.status||'正常'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== MY PROFILE =====
+async function loadMyProfile(){
+  if(!currentEmp) return;
+  document.getElementById('profileInfo').innerHTML = `
+    <div><b>姓名：</b>${currentEmp.name}</div>
+    <div><b>部門：</b>${currentEmp.department||'—'}</div>
+    <div><b>班別：</b>${currentEmp.shift_type} (${currentEmp.shift_start}–${currentEmp.shift_end})</div>
+    <div><b>月薪：</b>${(currentEmp.base_salary||0).toLocaleString()} 元</div>
+    <div><b>特休剩餘：</b>${(currentEmp.annual_leave_days||7)-(currentEmp.annual_leave_used||0)} 天</div>
+    <div><b>登入信箱：</b>${currentUser.email}</div>
+  `;
+}
+
+async function changePwd(){
+  const pwd = document.getElementById('newPwd').value;
+  if(!pwd||pwd.length<6){ showToast('密碼至少需要 6 個字元','#A32D2D'); return; }
+  const {error} = await sb.auth.updateUser({password:pwd});
+  if(error){ showToast('更新失敗：'+error.message,'#A32D2D'); return; }
+  showToast('✓ 密碼已更新','#27500A');
+  document.getElementById('newPwd').value='';
+}
+
+// ===== ADMIN: DASHBOARD =====
+async function loadDashboard(){
+  const {data:emps} = await sb.from('employees').select('*').eq('role','employee');
+  document.getElementById('dTotal').textContent = emps ? emps.length : 0;
+
+  const today = new Date().toISOString().slice(0,10);
+  const {data:todayLogs} = await sb.from('attendance_logs').select('*,employees(name)').eq('work_date', today);
+  document.getElementById('dOnline').textContent = todayLogs ? todayLogs.filter(l=>l.check_in&&!l.check_out).length : 0;
+
+  const {data:pending1} = await sb.from('leave_requests').select('id').eq('status','待審');
+  const {data:pending2} = await sb.from('overtime_requests').select('id').eq('status','待審');
+  const total = (pending1?.length||0)+(pending2?.length||0);
+  document.getElementById('dPending').textContent = total;
+  document.getElementById('approvalBadge').textContent = total;
+
+  // today status
+  if(emps){
+    const todayDiv = document.getElementById('todayStatus');
+    const colors = ['#E6F1FB','#FAEEDA','#EAF3DE','#F1EFE8'];
+    const textColors = ['#185FA5','#854F0B','#3B6D11','#5F5E5A'];
+    todayDiv.innerHTML = emps.map((e,i)=>{
+      const log = todayLogs ? todayLogs.find(l=>l.employee_id===e.id) : null;
+      const status = log?.check_out ? '已下班' : log?.check_in ? '在線' : '未打卡';
+      const badge = log?.check_out ? 'b-gray' : log?.check_in ? 'b-green' : 'b-amber';
+      return `<div class="list-row">
+        <div class="avatar" style="background:${colors[i%4]};color:${textColors[i%4]}">${e.name[0]}</div>
+        <div style="flex:1"><div style="font-weight:600">${e.name}</div><div style="font-size:12px;color:#888">${e.department||''}</div></div>
+        <span class="badge ${badge}">${status}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // latest pending
+  const {data:lp} = await sb.from('leave_requests').select('*,employees(name)')
+    .eq('status','待審').order('created_at',{ascending:false}).limit(3);
+  const lpDiv = document.getElementById('latestPending');
+  if(!lp||!lp.length){ lpDiv.innerHTML='<div style="color:#aaa;text-align:center;padding:20px">目前無待審申請</div>'; }
+  else {
+    lpDiv.innerHTML = lp.map(r=>`<div class="list-row">
+      <div style="flex:1"><div style="font-weight:600">${r.employees?.name} · ${r.leave_type} ${r.days}天</div>
+      <div style="font-size:12px;color:#888">${r.from_date}</div></div>
+      <button class="btn-success btn-sm" onclick="approveLeave('${r.id}')">核准</button>
+      <button class="btn-danger btn-sm" onclick="rejectLeave('${r.id}')">駁回</button>
+    </div>`).join('');
+  }
+  document.getElementById('dRate').textContent = emps&&emps.length ? Math.round((todayLogs?.filter(l=>l.check_in).length||0)/emps.length*100)+'%' : '—';
+}
+
+// ===== ADMIN: APPROVALS =====
+let approveTab = 'leave';
+function switchApproveTab(tab, btn){
+  approveTab = tab;
+  document.getElementById('approveLeave').style.display = tab==='leave'?'block':'none';
+  document.getElementById('approveOT').style.display = tab==='ot'?'block':'none';
+  document.getElementById('approveDone').style.display = tab==='done'?'block':'none';
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  loadApprovals();
+}
+
+async function loadApprovals(){
+  if(approveTab==='leave'){
+    const {data} = await sb.from('leave_requests').select('*,employees(name)')
+      .eq('status','待審').order('created_at',{ascending:false});
+    const div = document.getElementById('approveLeave');
+    if(!data||!data.length){ div.innerHTML='<div class="card" style="text-align:center;color:#aaa;padding:20px">目前無待審請假申請</div>'; return; }
+    div.innerHTML = data.map(r=>`<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="flex:1">
+          <div style="font-weight:600;margin-bottom:4px">${r.employees?.name} · <span class="badge b-blue">${r.leave_type}</span> ${r.days} 天</div>
+          <div style="font-size:13px;color:#666">${r.from_date} ~ ${r.to_date}</div>
+          <div style="font-size:13px;color:#666;margin-top:2px">事由：${r.reason||'—'}</div>
+          ${r.deduct_amount>0?`<div style="font-size:12px;color:#A32D2D;margin-top:4px">扣薪 ${r.deduct_amount.toLocaleString()} 元</div>`:''}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn-success" onclick="approveLeave('${r.id}')">核准</button>
+          <button class="btn-danger" onclick="rejectLeave('${r.id}')">駁回</button>
+        </div>
+      </div>
+    </div>`).join('');
+  } else if(approveTab==='ot'){
+    const {data} = await sb.from('overtime_requests').select('*,employees(name)')
+      .eq('status','待審').order('created_at',{ascending:false});
+    const div = document.getElementById('approveOT');
+    if(!data||!data.length){ div.innerHTML='<div class="card" style="text-align:center;color:#aaa;padding:20px">目前無待審加班申請</div>'; return; }
+    div.innerHTML = data.map(r=>`<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="flex:1">
+          <div style="font-weight:600;margin-bottom:4px">${r.employees?.name} · <span class="badge b-amber">${r.ot_type}</span> ${r.hours}H</div>
+          <div style="font-size:13px;color:#666">${r.ot_date} ${r.start_time}–${r.end_time} · ${r.compensation}</div>
+          <div style="font-size:13px;color:#666;margin-top:2px">事由：${r.reason||'—'}</div>
+          <div style="font-size:12px;color:#3B6D11;margin-top:4px">加班費 +${(r.pay_amount||0).toLocaleString()} 元</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn-success" onclick="approveOT('${r.id}')">核准</button>
+          <button class="btn-danger" onclick="rejectOT('${r.id}')">駁回</button>
+        </div>
+      </div>
+    </div>`).join('');
+  } else {
+    const {data:l} = await sb.from('leave_requests').select('*,employees(name)').neq('status','待審').order('created_at',{ascending:false}).limit(20);
+    const {data:o} = await sb.from('overtime_requests').select('*,employees(name)').neq('status','待審').order('created_at',{ascending:false}).limit(20);
+    const div = document.getElementById('approveDone');
+    const all = [...(l||[]).map(r=>({...r,kind:'leave'})), ...(o||[]).map(r=>({...r,kind:'ot'}))];
+    all.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    if(!all.length){ div.innerHTML='<div class="card" style="text-align:center;color:#aaa;padding:20px">尚無已處理申請</div>'; return; }
+    div.innerHTML = '<div class="card">' + all.map(r=>`<div class="list-row">
+      <div style="flex:1"><div style="font-weight:600">${r.employees?.name} · ${r.kind==='leave'?r.leave_type+' '+r.days+'天':r.ot_type+' '+r.hours+'H'}</div>
+      <div style="font-size:12px;color:#888">${r.kind==='leave'?r.from_date:r.ot_date}</div></div>
+      <span class="badge ${r.status==='核准'?'b-green':'b-red'}">${r.status}</span>
+    </div>`).join('') + '</div>';
+  }
+}
+
+async function approveLeave(id){
+  await sb.from('leave_requests').update({status:'核准',reviewed_at:new Date().toISOString()}).eq('id',id);
+  showToast('✓ 已核准請假申請','#27500A'); loadApprovals(); loadDashboard();
+}
+async function rejectLeave(id){
+  await sb.from('leave_requests').update({status:'駁回',reviewed_at:new Date().toISOString()}).eq('id',id);
+  showToast('已駁回請假申請','#633806'); loadApprovals(); loadDashboard();
+}
+async function approveOT(id){
+  await sb.from('overtime_requests').update({status:'核准',reviewed_at:new Date().toISOString()}).eq('id',id);
+  showToast('✓ 已核准加班申請','#27500A'); loadApprovals(); loadDashboard();
+}
+async function rejectOT(id){
+  await sb.from('overtime_requests').update({status:'駁回',reviewed_at:new Date().toISOString()}).eq('id',id);
+  showToast('已駁回加班申請','#633806'); loadApprovals(); loadDashboard();
+}
+
+// ===== ADMIN: ALL ATTENDANCE =====
+async function loadEmpFilter(){
+  const {data} = await sb.from('employees').select('id,name').eq('role','employee');
+  const sel = document.getElementById('attEmpFilter');
+  if(data) data.forEach(e=>{
+    const o = document.createElement('option'); o.value=e.id; o.textContent=e.name; sel.appendChild(o);
+  });
+}
+
+async function loadAllAttendance(){
+  const empId = document.getElementById('attEmpFilter').value;
+  const month = document.getElementById('attMonth').value;
+  if(!month) return;
+  const [y,m] = month.split('-');
+  const from = `${y}-${m}-01`;
+  const to = `${y}-${m}-31`;
+  let query = sb.from('attendance_logs').select('*,employees(name)').gte('work_date',from).lte('work_date',to).order('work_date',{ascending:false});
+  if(empId) query = query.eq('employee_id',empId);
+  const {data} = await query;
+  const tbody = document.getElementById('allAttLog');
+  if(!data||!data.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">無資料</td></tr>'; return; }
+  const p = v=>String(v).padStart(2,'0');
+  tbody.innerHTML = data.map(r=>{
+    const ci = r.check_in?new Date(r.check_in):null;
+    const co = r.check_out?new Date(r.check_out):null;
+    return `<tr>
+      <td>${r.employees?.name}</td><td>${r.work_date}</td>
+      <td>${ci?`${p(ci.getHours())}:${p(ci.getMinutes())}`:'—'}</td>
+      <td>${co?`${p(co.getHours())}:${p(co.getMinutes())}`:'—'}</td>
+      <td>${ci&&co?((co-ci)/3600000).toFixed(1)+'H':'—'}</td>
+      <td><span class="badge ${r.status==='遲到'?'b-amber':'b-green'}">${r.status||'正常'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== ADMIN: SCHEDULES =====
+async function loadSchedules(){
+  const {data} = await sb.from('employees').select('*').eq('role','employee');
+  const tbody = document.getElementById('scheduleBody');
+  if(!data||!data.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">尚無員工</td></tr>'; return; }
+  tbody.innerHTML = data.map(e=>`<tr>
+    <td>${e.name}</td><td>${e.department||'—'}</td>
+    <td><span class="badge b-blue">${e.shift_type}</span></td>
+    <td>${e.shift_start||'09:00'}</td><td>${e.shift_end||'18:00'}</td>
+    <td><button class="btn-sm btn-secondary" onclick="editShift('${e.id}','${e.shift_type}')">調整</button></td>
+  </tr>`).join('');
+}
+
+async function editShift(id, cur){
+  const shifts = ['早班','晚班','彈性'];
+  const next = shifts[(shifts.indexOf(cur)+1)%shifts.length];
+  const times = {'早班':['09:00','18:00'],'晚班':['13:00','22:00'],'彈性':['10:00','19:00']};
+  await sb.from('employees').update({shift_type:next,shift_start:times[next][0],shift_end:times[next][1]}).eq('id',id);
+  showToast(`已切換為 ${next}`,'#27500A'); loadSchedules();
+}
+
+// ===== ADMIN: EMPLOYEES =====
+async function loadEmployees(){
+  const {data} = await sb.from('employees').select('*').order('created_at');
+  const tbody = document.getElementById('empBody');
+  if(!data||!data.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">尚無員工</td></tr>'; return; }
+  tbody.innerHTML = data.map(e=>`<tr>
+    <td style="font-weight:600">${e.name}</td>
+    <td>${e.department||'—'}</td>
+    <td><span class="badge b-blue">${e.shift_type}</span></td>
+    <td>${(e.base_salary||0).toLocaleString()}</td>
+    <td>${(e.annual_leave_days||7)-(e.annual_leave_used||0)} 天</td>
+    <td><span class="badge ${e.role==='admin'?'b-red':'b-gray'}">${e.role==='admin'?'管理員':'員工'}</span></td>
+  </tr>`).join('');
+}
+
+function showAddEmployee(){ document.getElementById('addEmpCard').style.display='block'; }
+
+async function addEmployee(){
+  const name = document.getElementById('newEmpName').value;
+  const email = document.getElementById('newEmpEmail').value;
+  const pwd = document.getElementById('newEmpPwd').value;
+  const dept = document.getElementById('newEmpDept').value;
+  const salary = parseInt(document.getElementById('newEmpSalary').value)||0;
+  const shift = document.getElementById('newEmpShift').value;
+  if(!name||!email||!pwd){ showToast('請填寫完整資料','#A32D2D'); return; }
+  const times = {'早班':['09:00','18:00'],'晚班':['13:00','22:00'],'彈性':['10:00','19:00']};
+
+  // Use admin API via Supabase auth admin - note: in production use Edge Function
+  showToast('正在建立帳號...','#185FA5');
+  // Create auth user via sign up (will send confirmation email)
+  const {data:authData, error:authErr} = await sb.auth.signUp({email, password:pwd});
+  if(authErr){ showToast('建立失敗：'+authErr.message,'#A32D2D'); return; }
+
+  if(authData.user){
+    await sb.from('employees').insert({
+      user_id: authData.user.id, name, department:dept,
+      base_salary:salary, shift_type:shift,
+      shift_start:times[shift][0], shift_end:times[shift][1],
+      role:'employee', annual_leave_days:7, annual_leave_used:0
+    });
+  }
+  showToast('✓ 員工帳號已建立，系統已寄送確認信','#27500A');
+  document.getElementById('addEmpCard').style.display='none';
+  loadEmployees();
+}
+
+// ===== ADMIN: SALARY =====
+async function calcSalary(){
+  const month = document.getElementById('salMonth').value;
+  if(!month){ showToast('請選擇月份','#A32D2D'); return; }
+  const [y,m] = month.split('-');
+  const from = `${y}-${m}-01`;
+  const to = `${y}-${m}-31`;
+
+  const {data:emps} = await sb.from('employees').select('*').eq('role','employee');
+  const {data:leaves} = await sb.from('leave_requests').select('*').eq('status','核准').gte('from_date',from).lte('to_date',to);
+  const {data:ots} = await sb.from('overtime_requests').select('*').eq('status','核准').gte('ot_date',from).lte('ot_date',to);
+
+  const tbody = document.getElementById('salaryBody');
+  if(!emps||!emps.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa">尚無員工資料</td></tr>'; return; }
+
+  let grandTotal = 0;
+  tbody.innerHTML = emps.map(e=>{
+    const base = e.base_salary||0;
+    const daily = Math.round(base/30);
+    const empLeaves = (leaves||[]).filter(l=>l.employee_id===e.id);
+    const eventDays = empLeaves.filter(l=>l.leave_type==='事假').reduce((a,b)=>a+b.days,0);
+    const sickDays = empLeaves.filter(l=>l.leave_type==='病假').reduce((a,b)=>a+b.days,0);
+    const leaveDeduct = daily*eventDays + Math.round(daily/2)*sickDays;
+    const otPay = (ots||[]).filter(o=>o.employee_id===e.id).reduce((a,b)=>a+(b.pay_amount||0),0);
+    const net = base - leaveDeduct + otPay;
+    grandTotal += net;
+    return `<tr>
+      <td style="font-weight:600">${e.name}</td>
+      <td>${base.toLocaleString()}</td>
+      <td style="color:#A32D2D">${leaveDeduct>0?'– '+leaveDeduct.toLocaleString():'0'}</td>
+      <td style="color:#A32D2D">${sickDays>0?'– '+Math.round(daily/2*sickDays).toLocaleString():'0'}</td>
+      <td style="color:#3B6D11">${otPay>0?'+ '+otPay.toLocaleString():'0'}</td>
+      <td style="font-weight:600;color:#185FA5">${net.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  const totalEl = document.getElementById('salaryTotal');
+  totalEl.textContent = `本月薪資總計：${grandTotal.toLocaleString()} 元`;
+  totalEl.style.display='block';
+}
+
+// ===== EXPORT =====
+async function loadExpEmpFilter(){
+  const {data} = await sb.from('employees').select('id,name').eq('role','employee');
+  const sel = document.getElementById('expEmp');
+  sel.innerHTML = '<option value="">全部員工</option>';
+  if(data) data.forEach(e=>{
+    const o = document.createElement('option'); o.value=e.id; o.textContent=e.name; sel.appendChild(o);
+  });
+  const n = new Date(); document.getElementById('expMonth').value=n.toISOString().slice(0,7);
+}
+
+async function exportData(type){
+  const empId = document.getElementById('expEmp').value;
+  const month = document.getElementById('expMonth').value;
+  if(!month){ showToast('請選擇月份','#A32D2D'); return; }
+  const [y,m] = month.split('-');
+  const from = `${y}-${m}-01`, to = `${y}-${m}-31`;
+
+  let rows=[], headers=[];
+  if(type==='打卡紀錄'){
+    let q = sb.from('attendance_logs').select('*,employees(name)').gte('work_date',from).lte('work_date',to).order('work_date');
+    if(empId) q=q.eq('employee_id',empId);
+    const {data} = await q;
+    headers=['姓名','日期','上班時間','下班時間','狀態'];
+    const p=v=>String(v).padStart(2,'0');
+    rows=(data||[]).map(r=>{
+      const ci=r.check_in?new Date(r.check_in):null;
+      const co=r.check_out?new Date(r.check_out):null;
+      return [r.employees?.name,r.work_date,ci?`${p(ci.getHours())}:${p(ci.getMinutes())}`:'',co?`${p(co.getHours())}:${p(co.getMinutes())}`:'',r.status||'正常'];
+    });
+  } else if(type==='請假紀錄'){
+    let q = sb.from('leave_requests').select('*,employees(name)').gte('from_date',from).lte('to_date',to);
+    if(empId) q=q.eq('employee_id',empId);
+    const {data} = await q;
+    headers=['姓名','假別','開始日期','結束日期','天數','事由','狀態'];
+    rows=(data||[]).map(r=>[r.employees?.name,r.leave_type,r.from_date,r.to_date,r.days,r.reason||'',r.status]);
+  } else {
+    let q = sb.from('overtime_requests').select('*,employees(name)').gte('ot_date',from).lte('ot_date',to);
+    if(empId) q=q.eq('employee_id',empId);
+    const {data} = await q;
+    headers=['姓名','日期','類型','時數','補償方式','加班費','狀態'];
+    rows=(data||[]).map(r=>[r.employees?.name,r.ot_date,r.ot_type,r.hours,r.compensation,r.pay_amount||0,r.status]);
+  }
+
+  const csv = [headers,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `${type}_${month}.csv`; a.click();
+  showToast(`✓ ${type} 已匯出`,'#27500A');
+}
+
+// ===== AUTH STATE =====
+sb.auth.onAuthStateChange(async(event, session)=>{
+  if(event === 'PASSWORD_RECOVERY') {
+    document.getElementById('loginPage').style.display='none';
+    document.getElementById('resetPage').style.display='block';
+    document.getElementById('appPage').style.display='none';
+    return;
+  }
+  if(session&&session.user&&event!=='PASSWORD_RECOVERY'){
+    currentUser = session.user;
+    // Don't auto-init if on reset page
+    if(document.getElementById('resetPage').style.display==='block') return;
+    await initApp();
+  }
+});
+
+// Check for reset token in URL on page load
+window.addEventListener('load', async () => {
+  const handled = await handleAuthCallback();
+  if (!handled) {
+    // Check existing session
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await initApp();
+    }
+  }
+});
+
+// init dates
+(()=>{
+  const n = new Date();
+  const today = n.toISOString().slice(0,10);
+  document.getElementById('leaveFrom').value = today;
+  document.getElementById('leaveTo').value = today;
+  document.getElementById('otDate').value = today;
+})();
+</script>
+</body>
+</html>
