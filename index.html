@@ -1291,7 +1291,7 @@ sb.auth.onAuthStateChange(async(event, session)=>{
     document.getElementById('appPage').style.display='none';
     return;
   }
-  if(session&&session.user&&event!=='PASSWORD_RECOVERY'){
+  if(event==='SIGNED_IN'&&session&&session.user){
     currentUser = session.user;
     // Don't auto-init if on reset page
     if(document.getElementById('resetPage').style.display==='block') return;
