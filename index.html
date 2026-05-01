@@ -619,8 +619,7 @@ async function doLogin(){
 async function doLogout(){
   await sb.auth.signOut();
   currentUser = null; currentEmp = null;
-  document.getElementById('loginPage').style.display='block';
-  document.getElementById('appPage').style.display='none';
+  window.location.reload();
 }
 
 // ===== INIT APP =====
